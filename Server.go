@@ -12,6 +12,7 @@ const (
 )
 
 type Server struct {
+	configuration Configuration
 }
 
 func (server *Server) init() {
@@ -32,5 +33,4 @@ func (server *Server) init() {
 }
 
 func (server *Server) handleConnection(connection *net.Conn) {
-
 }
