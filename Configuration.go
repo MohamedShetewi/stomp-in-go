@@ -1,6 +1,10 @@
 package main
 
+import "time"
+
 type Configuration struct {
-	heartBeatRate uint
-	destinations  []string
+	topics         []string
+	defaultHB      int64
+	maxFrameSize   int
+	maxTcpConnTime time.Time
 }

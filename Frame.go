@@ -1,5 +1,14 @@
 package main
 
+type ErrorCode uint
+
+const (
+	OK ErrorCode = iota
+	EmptyMessage
+	UnsupportedCommand
+	UnsupportedHeaderFormat
+)
+
 type Header struct {
 	key   string
 	value string
@@ -11,17 +20,17 @@ func (header Header) toString() string {
 
 type Body string
 
-type Frame[T Command] struct {
-	command T
-	headers []*Header
+type Frame struct {
+	command Command
+	headers map[string]string
 	body    Body
 }
 
-func (frame *Frame[T]) toUTF8() []byte {
-	command := Command(frame.command).encode()
+func (frame *Frame) toUTF8() []byte {
+	command := frame.command.encode()
 	headers := ""
-	for _, header := range frame.headers {
-		headers += header.toString() + "\n"
+	for key, value := range frame.headers {
+		headers += key + ":" + value + "\n"
 	}
 	body := string(frame.body)
 
