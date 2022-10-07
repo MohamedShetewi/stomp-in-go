@@ -16,7 +16,7 @@ type Body string
 type Frame struct {
 	Command Command
 	Headers map[string]string
-	body    Body
+	Body    Body
 }
 
 func (frame *Frame) ToUTF8() []byte {
@@ -29,7 +29,7 @@ func (frame *Frame) ToUTF8() []byte {
 		header := key + ":" + value + "\n"
 		buffer.Write([]byte(header))
 	}
-	buffer.Write([]byte(frame.body + "\n"))
+	buffer.Write([]byte(frame.Body + "\n"))
 
 	return buffer.Bytes()
 }

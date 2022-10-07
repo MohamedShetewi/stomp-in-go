@@ -27,7 +27,7 @@ func Decode(msg string) (*Frame, ErrorCode) {
 	return &Frame{
 		Command: cmd,
 		Headers: headers,
-		body:    Body(body),
+		Body:    Body(body),
 	}, OK
 }
 
