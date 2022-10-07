@@ -129,7 +129,7 @@ func (server *Server) removeConnection(client *Client) {
 	if ok, idx := server.hasClient(client); ok {
 		server.clientsLock.Lock()
 		defer server.clientsLock.Unlock()
-		removeIndex(&server.clientList, idx)
+		removeIndex(server.clientList, idx)
 		err := (*client.conn).Close()
 		if err != nil {
 			log.Println(err)
