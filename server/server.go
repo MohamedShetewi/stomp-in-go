@@ -51,13 +51,14 @@ func (server *Server) init() {
 		}
 		if err != nil {
 			log.Println(err)
-			return
+			continue
 		}
 		err = tcpConnection.SetDeadline(server.config.maxTcpConnTime)
 		if err != nil {
 			log.Println(err)
-			return
+			continue
 		}
+		server.AddClient(client)
 		go server.clientListener(client)
 		go server.clientSendReceive(client)
 	}
@@ -74,6 +75,7 @@ func (server *Server) clientListener(client *Client) {
 
 		if err != nil {
 			log.Println(err)
+			server.RemoveClient(client)
 			return
 		}
 		client.receiveChan <- buffer
@@ -90,9 +92,11 @@ func (server *Server) clientSendReceive(client *Client) {
 	for {
 		select {
 		case receivedMsg := <-client.receiveChan:
-			frm, errCode := frame.Decode(string(receivedMsg))
-			if errCode != frame.OK {
-				//TODO send error msg to the client
+			frm, err := frame.Decode(string(receivedMsg))
+			if err != nil {
+				sendError(client, make(map[string]string), "Decode Error: "+err.Error())
+				server.RemoveClient(client)
+				return
 			}
 			commandHandler := commandHandlerMap[frm.Command]
 			commandHandler(server, client, frm)
@@ -100,8 +104,8 @@ func (server *Server) clientSendReceive(client *Client) {
 			inBeatDeadline = time.After(newInBeat)
 		case msg := <-client.sendChan:
 			_, err := (*client.conn).Write(msg)
-
 			if err != nil {
+				log.Println(err)
 				continue
 			}
 			newOutBeat := time.Duration(client.inHB+rand.Int63n(60000)+30000) * time.Millisecond
@@ -112,7 +116,10 @@ func (server *Server) clientSendReceive(client *Client) {
 			}
 		case <-inBeatDeadline:
 			if client.outHB != -1 {
-				// TODO send error msg + close the connection
+				sendError(client, make(map[string]string),
+					"Timeout")
+				server.RemoveClient(client)
+				return
 			}
 		}
 	}
@@ -127,7 +134,7 @@ func (server *Server) HasClient(connection *Client) (bool, int) {
 	return false, -1
 }
 
-func (server *Server) RemoveConnection(client *Client) {
+func (server *Server) RemoveClient(client *Client) {
 	if ok, idx := server.HasClient(client); ok {
 		server.clientsLock.Lock()
 		defer server.clientsLock.Unlock()
@@ -140,5 +147,13 @@ func (server *Server) RemoveConnection(client *Client) {
 			log.Println(err)
 			return
 		}
+	}
+}
+
+func (server *Server) AddClient(client *Client) {
+	if ok, _ := server.HasClient(client); !ok {
+		server.clientsLock.Lock()
+		defer server.clientsLock.Unlock()
+		server.clientList = append(server.clientList, client)
 	}
 }

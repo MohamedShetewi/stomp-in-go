@@ -15,7 +15,8 @@ var commandHandlerMap = map[frame.Command]commandHandler{
 
 func connectHandler(server *Server, client *Client, frame *frame.Frame) {
 	if ok, _ := server.HasClient(client); !ok {
-		//TODO send error message
+		sendError(client, frame.Headers,
+			"Connection Error: connection is already established!")
 		return
 	}
 	hearBeatSettings := strings.Split(frame.Headers["heart-beat"], ",")
@@ -32,7 +33,8 @@ func connectHandler(server *Server, client *Client, frame *frame.Frame) {
 			client.outHB = int64(math.Max(float64(server.config.defaultHB), float64(heartbeat)))
 		}
 	} else {
-		//TODO send error message
+		sendError(client, frame.Headers,
+			"Invalid type: heartbeat settings must be in a valid format")
 		return
 	}
 	clientInHB := hearBeatSettings[1]
@@ -43,7 +45,8 @@ func connectHandler(server *Server, client *Client, frame *frame.Frame) {
 			client.inHB = int64(int(math.Max(float64(server.config.defaultHB), float64(heartbeat))))
 		}
 	} else {
-		//TODO send error message
+		sendError(client, frame.Headers,
+			"Invalid type: heartbeat settings must be in a valid format")
 		return
 	}
 }
