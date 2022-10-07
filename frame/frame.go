@@ -1,5 +1,7 @@
 package frame
 
+import "bytes"
+
 type ErrorCode uint
 
 const (
@@ -18,15 +20,16 @@ type Frame struct {
 }
 
 func (frame *Frame) ToUTF8() []byte {
+	var buffer bytes.Buffer
+
 	cmd := frame.Command.Encode()
-	headers := ""
+	buffer.Write([]byte(cmd))
+
 	for key, value := range frame.Headers {
-		headers += key + ":" + value + "\n"
+		header := key + ":" + value + "\n"
+		buffer.Write([]byte(header))
 	}
-	body := string(frame.body)
+	buffer.Write([]byte(frame.body + "\n"))
 
-	frameStream := []byte(cmd + "\n" + headers + "\n" + body)
-	frameStream = append(frameStream, 0)
-
-	return []byte(cmd + "\n" + headers + "\n" + body)
+	return buffer.Bytes()
 }
