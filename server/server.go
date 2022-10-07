@@ -1,6 +1,8 @@
-package main
+package server
 
 import (
+	"github.com/MohamedShetewi/stomp-in-go/frame"
+	"github.com/MohamedShetewi/stomp-in-go/utils"
 	"log"
 	"math/rand"
 	"net"
@@ -88,12 +90,12 @@ func (server *Server) clientSendReceive(client *Client) {
 	for {
 		select {
 		case receivedMsg := <-client.receiveChan:
-			frame, errCode := Decode(string(receivedMsg))
-			if errCode != OK {
+			frm, errCode := frame.Decode(string(receivedMsg))
+			if errCode != frame.OK {
 				//TODO send error msg to the client
 			}
-			commandHandler := CommandHandlerMap[frame.command]
-			commandHandler(server, client, frame)
+			commandHandler := commandHandlerMap[frm.Command]
+			commandHandler(server, client, frm)
 			newInBeat := time.Duration(client.outHB+rand.Int63n(60000)+30000) * time.Millisecond
 			inBeatDeadline = time.After(newInBeat)
 		case msg := <-client.sendChan:
@@ -116,7 +118,7 @@ func (server *Server) clientSendReceive(client *Client) {
 	}
 }
 
-func (server *Server) hasClient(connection *Client) (bool, int) {
+func (server *Server) HasClient(connection *Client) (bool, int) {
 	for idx, conn := range server.clientList {
 		if conn == connection {
 			return true, idx
@@ -125,12 +127,15 @@ func (server *Server) hasClient(connection *Client) (bool, int) {
 	return false, -1
 }
 
-func (server *Server) removeConnection(client *Client) {
-	if ok, idx := server.hasClient(client); ok {
+func (server *Server) RemoveConnection(client *Client) {
+	if ok, idx := server.HasClient(client); ok {
 		server.clientsLock.Lock()
 		defer server.clientsLock.Unlock()
-		removeIndex(&server.clientList, idx)
-		err := (*client.conn).Close()
+		err := utils.RemoveIndex(server.clientList, idx)
+		if err != nil {
+			return
+		}
+		err = (*client.conn).Close()
 		if err != nil {
 			log.Println(err)
 			return

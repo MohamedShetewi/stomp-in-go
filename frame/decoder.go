@@ -1,6 +1,8 @@
-package main
+package frame
 
-import "strings"
+import (
+	"strings"
+)
 
 func Decode(msg string) (*Frame, ErrorCode) {
 	msgSplit := strings.Split(msg, "\n")
@@ -9,9 +11,9 @@ func Decode(msg string) (*Frame, ErrorCode) {
 		return nil, EmptyMessage
 	}
 
-	var command Command
-	if val, ok := SupportedCommands[msgSplit[0]]; ok {
-		command = val
+	var cmd Command
+	if val, err := SupportedCommands(msgSplit[0]); err != nil {
+		cmd = val
 	} else {
 		return nil, UnsupportedCommand
 	}
@@ -23,22 +25,22 @@ func Decode(msg string) (*Frame, ErrorCode) {
 
 	body := decodeBody(msgSplit, newOffset)
 	return &Frame{
-		command: command,
-		headers: headers,
+		Command: cmd,
+		Headers: headers,
 		body:    Body(body),
 	}, OK
 }
 
-func decodeHeaders(frame []string, offset int) (headers map[string]string, newOffset int, code ErrorCode) {
-	var i = offset
-	for ; i < len(frame) && frame[i] != ""; i += 1 {
-		header := strings.Split(frame[i], ":")
+func decodeHeaders(frame []string, offset int) (map[string]string, int, ErrorCode) {
+	headers := make(map[string]string)
+	for ; offset < len(frame) && frame[offset] != ""; offset += 1 {
+		header := strings.Split(frame[offset], ":")
 		if len(header) != 2 {
 			return nil, -1, UnsupportedHeaderFormat
 		}
 		headers[header[0]] = header[1]
 	}
-	return headers, i, OK
+	return headers, offset, OK
 }
 
 func decodeBody(frame []string, offset int) string {

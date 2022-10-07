@@ -1,7 +1,9 @@
-package main
+package frame
+
+import "errors"
 
 type Command interface {
-	encode() string
+	Encode() string
 }
 
 type ClientCommand string
@@ -16,7 +18,7 @@ const (
 	STOMP       ClientCommand = "STOMP"
 )
 
-func (command ClientCommand) encode() string {
+func (command ClientCommand) Encode() string {
 	return string(command)
 }
 
@@ -27,11 +29,18 @@ const (
 	ERROR     ServerCommand = "ERROR"
 )
 
-func (command ServerCommand) encode() string {
+func (command ServerCommand) Encode() string {
 	return string(command)
 }
 
-var SupportedCommands = map[string]Command{
+func SupportedCommands(cmd string) (Command, error) {
+	if val, ok := supportedCommands[cmd]; ok {
+		return val, nil
+	}
+	return ERROR, errors.New("unsupported command")
+}
+
+var supportedCommands = map[string]Command{
 	"SEND":        SEND,
 	"SUBSCRIBE":   SUBSCRIBE,
 	"UNSUBSCRIBE": UNSUBSCRIBE,
