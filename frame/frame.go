@@ -2,15 +2,6 @@ package frame
 
 import "bytes"
 
-type ErrorCode uint
-
-const (
-	OK ErrorCode = iota
-	EmptyMessage
-	UnsupportedCommand
-	UnsupportedHeaderFormat
-)
-
 type Body string
 
 type Frame struct {
