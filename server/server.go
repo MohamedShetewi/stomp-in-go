@@ -100,16 +100,14 @@ func (server *Server) clientSendReceive(client *Client) {
 			}
 			commandHandler := commandHandlerMap[frm.Command]
 			commandHandler(server, client, frm)
-			newInBeat := time.Duration(client.outHB+rand.Int63n(60000)+30000) * time.Millisecond
-			inBeatDeadline = time.After(newInBeat)
+			inBeatDeadline = newDeadline(client.outHB)
 		case msg := <-client.sendChan:
 			_, err := (*client.conn).Write(msg)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
-			newOutBeat := time.Duration(client.inHB+rand.Int63n(60000)+30000) * time.Millisecond
-			outBeatDeadline = time.After(newOutBeat)
+			outBeatDeadline = newDeadline(client.inHB)
 		case <-outBeatDeadline:
 			if client.inHB != -1 {
 				// TODO send HeartBeat packet
@@ -156,4 +154,9 @@ func (server *Server) AddClient(client *Client) {
 		defer server.clientsLock.Unlock()
 		server.clientList = append(server.clientList, client)
 	}
+}
+
+func newDeadline(hb int64) <-chan time.Time {
+	deadline := time.Duration(hb+rand.Int63n(60000)+30000) * time.Millisecond
+	return time.After(deadline)
 }
