@@ -102,7 +102,7 @@ func (server *Server) connectListener(client *Client) {
 }
 
 /*
-This func is meant to be a goroutine that manages the sending + receiving
+This func is meant to be a goroutine that manages the receiving
 from the client. This also manages the Heartbeat between the server and the client.
 */
 
@@ -131,8 +131,13 @@ func (server *Server) receiveFromClient(client *Client) {
 	}
 }
 
+/*
+This goroutine manages sending frame to the client.
+As well as, sending heartbeats to the client.
+*/
+
 func (server *Server) sendToClient(client *Client) {
-	deadline := newDeadline(client.inHB)
+	deadline := newDeadline(client.inHB - 1000)
 	for {
 		select {
 		case msg := <-client.sendChan:
