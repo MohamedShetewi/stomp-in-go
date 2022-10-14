@@ -16,12 +16,12 @@ const (
 	TYPE = "tcp"
 )
 
-const maxTcpTime = 9000000 * time.Millisecond
-
 type Server struct {
-	config      Configuration
-	clientList  []*Client
-	clientsLock sync.Mutex
+	config          Configuration
+	clientList      []*Client
+	clientsLock     sync.Mutex
+	subscribers     map[string][]*Client
+	subscribersLock sync.Mutex
 }
 
 type Client struct {

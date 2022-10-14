@@ -8,7 +8,8 @@ import (
 type commandHandler func(server *Server, conn *Client, frame *frame.Frame)
 
 var commandHandlerMap = map[frame.Command]commandHandler{
-	frame.CONNECT: connectHandler,
+	frame.CONNECT:   connectHandler,
+	frame.SUBSCRIBE: subscribeHandler,
 }
 
 func connectHandler(server *Server, client *Client, frm *frame.Frame) {
@@ -35,4 +36,21 @@ func connectHandler(server *Server, client *Client, frm *frame.Frame) {
 	} else {
 		client.inHB = utils.Max(server.config.defaultHB, clientInHB)
 	}
+}
+
+func subscribeHandler(server *Server, client *Client, frm *frame.Frame) {
+	destination, ok := frm.Headers["destination"]
+	if !ok {
+		sendError(client, nil, "destination field is required in the subscribe frame")
+		return
+	}
+	if _, ok := server.subscribers[destination]; !ok {
+		sendError(client, nil, destination+"is not supported in the server")
+		return
+	}
+	server.subscribersLock.Lock()
+	subList := server.subscribers[destination]
+	newSubList := append(subList, client)
+	server.subscribers[destination] = newSubList
+	server.subscribersLock.Unlock()
 }
