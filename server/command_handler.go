@@ -2,9 +2,7 @@ package server
 
 import (
 	"github.com/MohamedShetewi/stomp-in-go/frame"
-	"math"
-	"strconv"
-	"strings"
+	"github.com/MohamedShetewi/stomp-in-go/utils"
 )
 
 type commandHandler func(server *Server, conn *Client, frame *frame.Frame)
@@ -13,40 +11,28 @@ var commandHandlerMap = map[frame.Command]commandHandler{
 	frame.CONNECT: connectHandler,
 }
 
-func connectHandler(server *Server, client *Client, frame *frame.Frame) {
+func connectHandler(server *Server, client *Client, frm *frame.Frame) {
 	if ok, _ := server.HasClient(client); !ok {
-		sendError(client, frame.Headers,
+		sendError(client, frm.Headers,
 			"Connection Error: connection is already established!")
 		return
 	}
-	hearBeatSettings := strings.Split(frame.Headers["heart-beat"], ",")
-	if len(hearBeatSettings) != 2 {
-		//TODO send error message
+	clientOutHB, clientInHB, err := frame.HeartBeatParser(frm.Headers["heart-beat"])
+
+	if err != nil {
+		sendError(client, frm.Headers, err.Error())
 		return
 	}
 
-	clientOutHB := hearBeatSettings[0]
-	if heartbeat, err := strconv.Atoi(clientOutHB); err == nil {
-		if heartbeat == 0 {
-			client.outHB = -1
-		} else {
-			client.outHB = int64(math.Max(float64(server.config.defaultHB), float64(heartbeat)))
-		}
+	if clientOutHB == 0 {
+		client.outHB = -1
 	} else {
-		sendError(client, frame.Headers,
-			"Invalid type: heartbeat settings must be in a valid format")
-		return
+		client.outHB = utils.Max(server.config.defaultHB, clientOutHB)
 	}
-	clientInHB := hearBeatSettings[1]
-	if heartbeat, err := strconv.Atoi(clientInHB); err == nil {
-		if heartbeat == 0 {
-			client.inHB = -1
-		} else {
-			client.inHB = int64(int(math.Max(float64(server.config.defaultHB), float64(heartbeat))))
-		}
+
+	if clientInHB == 0 {
+		client.inHB = -1
 	} else {
-		sendError(client, frame.Headers,
-			"Invalid type: heartbeat settings must be in a valid format")
-		return
+		client.inHB = utils.Max(server.config.defaultHB, clientInHB)
 	}
 }

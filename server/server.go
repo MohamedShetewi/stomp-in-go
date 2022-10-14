@@ -59,8 +59,8 @@ func (server *Server) init() {
 			continue
 		}
 		server.AddClient(client)
-		go server.clientListener(client)
-		go server.clientSendReceive(client)
+		go server.tcpListener(client)
+		go server.connectListener(client)
 	}
 }
 
@@ -68,17 +68,36 @@ func (server *Server) init() {
 This is meant to be a goroutine that listens to the frames sent from the client.
 This goroutine will stay alive as long as the connection is up.
 */
-func (server *Server) clientListener(client *Client) {
+func (server *Server) tcpListener(client *Client) {
 	for {
 		buffer := make([]byte, server.config.maxFrameSize)
 		_, err := (*client.conn).Read(buffer)
 
 		if err != nil {
 			log.Println(err)
-			server.RemoveClient(client)
 			return
 		}
 		client.receiveChan <- buffer
+	}
+}
+
+func (server *Server) connectListener(client *Client) {
+	initDeadline := time.After(server.config.deadlineForConnect)
+	select { // This is waiting for the connect-frame
+	case receivedMsg := <-client.receiveChan:
+		frm, err := frame.Decode(string(receivedMsg))
+		if err != nil {
+			sendError(client, make(map[string]string), "Decode Error: "+err.Error())
+			server.RemoveClient(client)
+			return
+		}
+		go server.receiveFromClient(client)
+		go server.sendToClient(client)
+		commandHandler := commandHandlerMap[frm.Command]
+		commandHandler(server, client, frm)
+	case <-initDeadline:
+		sendError(client, make(map[string]string), "Timeout")
+		return
 	}
 }
 
@@ -86,13 +105,13 @@ func (server *Server) clientListener(client *Client) {
 This func is meant to be a goroutine that manages the sending + receiving
 from the client. This also manages the Heartbeat between the server and the client.
 */
-func (server *Server) clientSendReceive(client *Client) {
-	outBeatDeadline := time.After(maxTcpTime) // w.r.t. server
-	inBeatDeadline := time.After(maxTcpTime)  // w.r.t. server
+
+func (server *Server) receiveFromClient(client *Client) {
+	deadline := newDeadline(client.outHB)
 	for {
 		select {
-		case receivedMsg := <-client.receiveChan:
-			frm, err := frame.Decode(string(receivedMsg))
+		case msg := <-client.receiveChan:
+			frm, err := frame.Decode(string(msg))
 			if err != nil {
 				sendError(client, make(map[string]string), "Decode Error: "+err.Error())
 				server.RemoveClient(client)
@@ -100,24 +119,32 @@ func (server *Server) clientSendReceive(client *Client) {
 			}
 			commandHandler := commandHandlerMap[frm.Command]
 			commandHandler(server, client, frm)
-			inBeatDeadline = newDeadline(client.outHB)
-		case msg := <-client.sendChan:
-			_, err := (*client.conn).Write(msg)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			outBeatDeadline = newDeadline(client.inHB)
-		case <-outBeatDeadline:
-			if client.inHB != -1 {
-				// TODO send HeartBeat packet
-			}
-		case <-inBeatDeadline:
+			deadline = newDeadline(client.outHB)
+		case <-deadline:
 			if client.outHB != -1 {
 				sendError(client, make(map[string]string),
 					"Timeout")
 				server.RemoveClient(client)
 				return
+			}
+		}
+	}
+}
+
+func (server *Server) sendToClient(client *Client) {
+	deadline := newDeadline(client.inHB)
+	for {
+		select {
+		case msg := <-client.sendChan:
+			_, err := (*client.conn).Write(msg)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			deadline = newDeadline(client.inHB)
+		case <-deadline:
+			if client.inHB != -1 {
+				// TODO send HeartBeat packet
 			}
 		}
 	}
