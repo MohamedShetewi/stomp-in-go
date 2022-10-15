@@ -20,11 +20,11 @@ type Server struct {
 	config           Configuration
 	clientList       []*Client
 	clientsLock      sync.Mutex
-	destinations     map[string][]*subscribers
+	destinations     map[string][]*subscriber
 	destinationsLock sync.Mutex
 }
 
-type subscribers struct {
+type subscriber struct {
 	client       *Client
 	isSubscribed bool
 }

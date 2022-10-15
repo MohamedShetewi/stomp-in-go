@@ -11,6 +11,7 @@ var commandHandlerMap = map[frame.Command]commandHandler{
 	frame.CONNECT:     connectHandler,
 	frame.SUBSCRIBE:   subscribeHandler,
 	frame.UNSUBSCRIBE: unsubscribeHandler,
+	frame.SEND:        sendHandler,
 }
 
 func connectHandler(server *Server, client *Client, frm *frame.Frame) {
@@ -49,7 +50,7 @@ func subscribeHandler(server *Server, client *Client, frm *frame.Frame) {
 		sendError(client, nil, destination+"is not supported in the server")
 		return
 	}
-	newSubscriber := &subscribers{
+	newSubscriber := &subscriber{
 		client:       client,
 		isSubscribed: true,
 	}
@@ -74,6 +75,32 @@ func unsubscribeHandler(server *Server, client *Client, frm *frame.Frame) {
 	for _, sub := range subscribers {
 		if sub.client == client {
 			sub.isSubscribed = false
+		}
+	}
+	// TODO remove unsubscribed clients after a threshold
+}
+
+func sendHandler(server *Server, client *Client, frm *frame.Frame) {
+	destination, ok := frm.Headers["destination"]
+	if !ok {
+		sendError(client, nil, "destination field is required in the subscribe frame")
+		return
+	}
+	if _, ok := server.destinations[destination]; !ok {
+		sendError(client, nil, destination+"is not supported in the server")
+		return
+	}
+	headers := map[string]string{
+		"destination": destination,
+	}
+	msg := &frame.Frame{
+		Command: frame.SEND,
+		Headers: headers,
+		Body:    frm.Body,
+	}
+	for _, subscriber := range server.destinations[destination] {
+		if subscriber.isSubscribed {
+			subscriber.client.sendChan <- msg.ToUTF8()
 		}
 	}
 }
