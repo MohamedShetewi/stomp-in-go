@@ -8,8 +8,9 @@ import (
 type commandHandler func(server *Server, conn *Client, frame *frame.Frame)
 
 var commandHandlerMap = map[frame.Command]commandHandler{
-	frame.CONNECT:   connectHandler,
-	frame.SUBSCRIBE: subscribeHandler,
+	frame.CONNECT:     connectHandler,
+	frame.SUBSCRIBE:   subscribeHandler,
+	frame.UNSUBSCRIBE: unsubscribeHandler,
 }
 
 func connectHandler(server *Server, client *Client, frm *frame.Frame) {
@@ -44,13 +45,35 @@ func subscribeHandler(server *Server, client *Client, frm *frame.Frame) {
 		sendError(client, nil, "destination field is required in the subscribe frame")
 		return
 	}
-	if _, ok := server.subscribers[destination]; !ok {
+	if _, ok := server.destinations[destination]; !ok {
 		sendError(client, nil, destination+"is not supported in the server")
 		return
 	}
+	newSubscriber := &subscribers{
+		client:       client,
+		isSubscribed: true,
+	}
 	server.subscribersLock.Lock()
-	subList := server.subscribers[destination]
-	newSubList := append(subList, client)
-	server.subscribers[destination] = newSubList
+	subList := server.destinations[destination]
+	newSubList := append(subList, newSubscriber)
+	server.destinations[destination] = newSubList
 	server.subscribersLock.Unlock()
+}
+
+func unsubscribeHandler(server *Server, client *Client, frm *frame.Frame) {
+	destination, ok := frm.Headers["destination"]
+	if !ok {
+		sendError(client, nil, "destination field is required in the subscribe frame")
+		return
+	}
+	if _, ok := server.destinations[destination]; !ok {
+		sendError(client, nil, destination+"is not supported in the server")
+		return
+	}
+	subscribers := server.destinations[destination]
+	for _, sub := range subscribers {
+		if sub.client == client {
+			sub.isSubscribed = false
+		}
+	}
 }
