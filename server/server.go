@@ -17,11 +17,16 @@ const (
 )
 
 type Server struct {
-	config          Configuration
-	clientList      []*Client
-	clientsLock     sync.Mutex
-	subscribers     map[string][]*Client
-	subscribersLock sync.Mutex
+	config           Configuration
+	clientList       []*Client
+	clientsLock      sync.Mutex
+	destinations     map[string][]*subscribers
+	destinationsLock sync.Mutex
+}
+
+type subscribers struct {
+	client       *Client
+	isSubscribed bool
 }
 
 type Client struct {
