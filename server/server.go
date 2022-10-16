@@ -30,11 +30,12 @@ type subscriber struct {
 }
 
 type Client struct {
-	conn        *net.Conn
-	outHB       int64
-	inHB        int64
-	receiveChan chan []byte
-	sendChan    chan []byte
+	conn         *net.Conn
+	outHB        int64
+	inHB         int64
+	receiveChan  chan []byte
+	sendChan     chan []byte
+	transactions []*transaction
 }
 
 func (server *Server) init() {

@@ -16,6 +16,7 @@ const (
 	CONNECT     ClientCommand = "CONNECT"
 	DISCONNECT  ClientCommand = "DISCONNECT"
 	STOMP       ClientCommand = "STOMP"
+	BEGIN       ClientCommand = "BEGIN"
 )
 
 func (command ClientCommand) Encode() string {
@@ -51,4 +52,5 @@ var supportedCommands = map[string]Command{
 	"MESSAGE":     MESSAGE,
 	"RECEIPT":     RECEIPT,
 	"ERROR":       ERROR,
+	"Begin":       BEGIN,
 }

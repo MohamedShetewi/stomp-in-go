@@ -12,6 +12,7 @@ var commandHandlerMap = map[frame.Command]commandHandler{
 	frame.SUBSCRIBE:   subscribeHandler,
 	frame.UNSUBSCRIBE: unsubscribeHandler,
 	frame.SEND:        sendHandler,
+	frame.BEGIN:       beginHandler,
 }
 
 func connectHandler(server *Server, client *Client, frm *frame.Frame) {
@@ -83,18 +84,18 @@ func unsubscribeHandler(server *Server, client *Client, frm *frame.Frame) {
 func sendHandler(server *Server, client *Client, frm *frame.Frame) {
 	destination, ok := frm.Headers["destination"]
 	if !ok {
-		sendError(client, nil, "destination field is required in the subscribe frame")
+		sendError(client, make(map[string]string), "destination field is required in the subscribe frame")
 		return
 	}
 	if _, ok := server.destinations[destination]; !ok {
-		sendError(client, nil, destination+"is not supported in the server")
+		sendError(client, make(map[string]string), destination+"is not supported in the server")
 		return
 	}
 	headers := map[string]string{
 		"destination": destination,
 	}
 	msg := &frame.Frame{
-		Command: frame.SEND,
+		Command: frame.MESSAGE,
 		Headers: headers,
 		Body:    frm.Body,
 	}
@@ -103,4 +104,23 @@ func sendHandler(server *Server, client *Client, frm *frame.Frame) {
 			subscriber.client.sendChan <- msg.ToUTF8()
 		}
 	}
+}
+
+func beginHandler(server *Server, client *Client, frm *frame.Frame) {
+	txID, ok := frm.Headers["transaction"]
+	if !ok {
+		sendError(client, make(map[string]string), "cannot find transaction id in the begin frame")
+	}
+	for _, transaction := range client.transactions {
+		if transaction.id == txID {
+			sendError(client, make(map[string]string), "transaction with "+txID+" already exists")
+			return
+		}
+	}
+	newTx := &transaction{
+		id:      txID,
+		status:  PENDING,
+		content: "",
+	}
+	client.transactions = append(client.transactions, newTx)
 }
