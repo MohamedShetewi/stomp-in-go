@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"github.com/MohamedShetewi/stomp-in-go/frame"
 	"github.com/MohamedShetewi/stomp-in-go/utils"
 )
@@ -13,6 +14,8 @@ var commandHandlerMap = map[frame.Command]commandHandler{
 	frame.UNSUBSCRIBE: unsubscribeHandler,
 	frame.SEND:        sendHandler,
 	frame.BEGIN:       beginHandler,
+	frame.COMMIT:      commitHandler,
+	frame.ABORT:       abortHandler,
 }
 
 func connectHandler(server *Server, client *Client, frm *frame.Frame) {
@@ -94,15 +97,21 @@ func sendHandler(server *Server, client *Client, frm *frame.Frame) {
 	headers := map[string]string{
 		"destination": destination,
 	}
-	msg := &frame.Frame{
-		Command: frame.MESSAGE,
-		Headers: headers,
-		Body:    frm.Body,
-	}
-	for _, subscriber := range server.destinations[destination] {
-		if subscriber.isSubscribed {
-			subscriber.client.sendChan <- msg.ToUTF8()
+	if txID, ok := frm.Headers["transaction"]; ok {
+		isFound, tx := findTX(txID, client.transactions)
+		if isFound && tx.status == PENDING {
+			tx.destination = destination
+			tx.content.Write([]byte(frm.Body))
+		} else {
+			sendError(client, make(map[string]string), "no transaction with id:"+txID+" was found")
 		}
+	} else {
+		frameToBePublished := &frame.Frame{
+			Command: frame.MESSAGE,
+			Headers: headers,
+			Body:    frm.Body,
+		}
+		server.publishMessage(destination, frameToBePublished)
 	}
 }
 
@@ -111,16 +120,52 @@ func beginHandler(server *Server, client *Client, frm *frame.Frame) {
 	if !ok {
 		sendError(client, make(map[string]string), "cannot find transaction id in the begin frame")
 	}
-	for _, transaction := range client.transactions {
-		if transaction.id == txID {
-			sendError(client, make(map[string]string), "transaction with "+txID+" already exists")
-			return
-		}
+	isFound, _ := findTX(txID, client.transactions)
+	if isFound {
+		sendError(client, make(map[string]string), "transaction with "+txID+" already exists")
+		return
 	}
 	newTx := &transaction{
 		id:      txID,
 		status:  PENDING,
-		content: "",
+		content: bytes.Buffer{},
 	}
 	client.transactions = append(client.transactions, newTx)
+}
+
+func commitHandler(server *Server, client *Client, frm *frame.Frame) {
+	txID, ok := frm.Headers["transaction"]
+	if !ok {
+		sendError(client, make(map[string]string), "cannot find transaction id in the begin frame")
+	}
+	isFound, tx := findTX(txID, client.transactions)
+	if isFound {
+		tx.status = COMMITTED
+		headers := map[string]string{
+			"destination": tx.destination,
+		}
+		frameToBePublished := &frame.Frame{
+			Command: frame.MESSAGE,
+			Headers: headers,
+			Body:    frm.Body,
+		}
+		server.publishMessage(tx.destination, frameToBePublished)
+		return
+	}
+	sendError(client, make(map[string]string), "cannot find transaction id in the begin frame")
+	return
+}
+
+func abortHandler(server *Server, client *Client, frm *frame.Frame) {
+	txID, ok := frm.Headers["transaction"]
+	if !ok {
+		sendError(client, make(map[string]string), "cannot find transaction id in the begin frame")
+	}
+	isFound, tx := findTX(txID, client.transactions)
+	if isFound {
+		tx.status = ABORTED
+		// TODO remove all of the aborted transactions after a threshold
+	}
+	sendError(client, make(map[string]string), "cannot find transaction id in the begin frame")
+	return
 }

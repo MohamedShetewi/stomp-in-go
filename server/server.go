@@ -194,6 +194,12 @@ func (server *Server) AddClient(client *Client) {
 	}
 }
 
+func (server *Server) publishMessage(destination string, frm *frame.Frame) {
+	for _, subscriber := range server.destinations[destination] {
+		subscriber.client.sendChan <- frm.ToUTF8()
+	}
+}
+
 func newDeadline(hb int64) <-chan time.Time {
 	deadline := time.Duration(hb+rand.Int63n(60000)+30000) * time.Millisecond
 	return time.After(deadline)
